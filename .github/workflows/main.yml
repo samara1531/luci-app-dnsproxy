@@ -1,4 +1,4 @@
-name: Build LuCI ALL packages
+name: LuCI Light Build
 
 on:
   workflow_dispatch:
@@ -26,27 +26,40 @@ jobs:
             sdk_url: "https://downloads.openwrt.org/releases/25.12.2/targets/x86/64/openwrt-sdk-25.12.2-x86-64_gcc-14.3.0_musl.Linux-x86_64.tar.zst"
 
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Install dependencies
+      # 💥 FREE DISK SPACE (ВАЖНО)
+      - name: Free runner space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc || true
+          sudo docker system prune -af || true
+
+      - name: Install deps
         run: |
           sudo apt update
-          sudo apt install -y rsync build-essential zstd wget
+          sudo apt install -y wget rsync tar xz-utils zstd build-essential
 
+      # 📦 Download SDK (NO PARSING)
       - name: Download SDK
         run: |
           set -e
 
-          echo "Downloading: ${{ matrix.sdk_url }}"
-          wget -O sdk.tar.zst "${{ matrix.sdk_url }}"
+          wget -O sdk.tar "${{ matrix.sdk_url }}"
 
-          unzstd sdk.tar.zst
-          tar -xf sdk.tar
+          if [[ "${{ matrix.sdk_url }}" == *.zst ]]; then
+            unzstd sdk.tar
+            tar -xf sdk.tar
+          else
+            tar -xf sdk.tar
+          fi
 
           mv openwrt-sdk-* sdk
 
-      - name: Add custom LuCI feed
+      # 📁 Add your LuCI package ONLY
+      - name: Add package
         run: |
           mkdir -p sdk/package/custom
 
@@ -55,38 +68,36 @@ jobs:
             --exclude='.github' \
             ./ sdk/package/custom/
 
-      - name: Update feeds
+      # 🧠 NO feeds (это главный фикс)
+      - name: Prepare build system
         run: |
           cd sdk
-          ./scripts/feeds update luci packages
-          ./scripts/feeds install -p luci -p packages
+          ./scripts/feeds update luci
+          ./scripts/feeds install -p luci
 
-      - name: Build LuCI packages
+      # 🏗️ BUILD (quiet mode!)
+      - name: Build package
         run: |
           cd sdk
-          make package/custom/compile V=s -j$(nproc)
+          make package/custom/compile -j$(nproc)
 
+      # 📦 Collect artifacts
       - name: Collect artifacts
         run: |
           mkdir -p out
+          find sdk/bin -type f \( -name "*.ipk" -o -name "*.apk" \) -exec cp {} out/ \;
 
-          find sdk/bin -type f \( -name "*.ipk" -o -name "*.apk" \) \
-            -exec cp {} out/ \;
-
-      - name: Rename packages
+      # 🏷️ Rename
+      - name: Rename
         run: |
-          set -e
-
           for f in out/*; do
             base=$(basename "$f")
-
-            arch=$(echo "$base" | sed -E 's/.*_([^_]+)\.(ipk|apk)/\1/')
-
-            mv "$f" "out/${base%%_*}_${{ matrix.version }}_${arch}"
+            mv "$f" "out/${base%%_*}_${{ matrix.version }}_${base##*_}"
           done
 
-      - name: Upload artifacts
+      # 📤 Upload
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: luci-all-${{ matrix.version }}
+          name: luci-${{ matrix.version }}
           path: out/*
