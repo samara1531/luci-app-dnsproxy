@@ -53,16 +53,18 @@ jobs:
 
           rm -f *.tar.zst *.tar.xz || true
 
-          mv openwrt-sdk-* sdk
+          sdk_dir=$(find . -maxdepth 1 -type d -name "openwrt-sdk*" | head -n1)
+
+          mv "$sdk_dir" sdk
 
       - name: Add LuCI package
         run: |
-          mkdir -p sdk/package/custom
+          set -e
 
-          rsync -av \
-            --exclude='.git' \
-            --exclude='.github' \
-            ./ sdk/package/custom/
+          mkdir -p sdk/package/custom/luci-app-dnsproxy
+
+          cp -r luci-app-dnsproxy/. \
+            sdk/package/custom/luci-app-dnsproxy/
 
       - name: Update feeds (light)
         run: |
