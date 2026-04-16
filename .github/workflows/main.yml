@@ -17,9 +17,7 @@ jobs:
       matrix:
         include:
           - version: 24.10
-            target: x86_64_generic
           - version: 25.12
-            target: x86_64_generic
 
     steps:
       - name: Checkout repo
@@ -34,11 +32,11 @@ jobs:
         run: |
           set -e
 
-          BASE="https://downloads.openwrt.org/releases/${{ matrix.version }}/targets/x86/${{ matrix.target }}"
+          BASE="https://downloads.openwrt.org/releases/${{ matrix.version }}/targets/x86/64/"
 
-          echo "Fetching SDK list from: $BASE"
+          echo "Fetching SDK from: $BASE"
 
-          SDK=$(curl -s "$BASE/" | grep -oE 'openwrt-sdk-[^"]+x86_64_generic[^"]+\.tar\.xz' | head -n1)
+          SDK=$(curl -s "$BASE/" | grep -oE 'openwrt-sdk-[^"]+tar\.xz' | head -n1)
 
           if [ -z "$SDK" ]; then
             echo "SDK not found!"
