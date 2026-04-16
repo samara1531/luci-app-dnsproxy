@@ -47,13 +47,21 @@ jobs:
         run: |
           set -e
 
-          wget -O sdk.tar "${{ matrix.sdk_url }}"
+          URL="${{ matrix.sdk_url }}"
+          FILE=$(basename "$URL")
 
-          if [[ "${{ matrix.sdk_url }}" == *.zst ]]; then
-            unzstd sdk.tar
-            tar -xf sdk.tar
+          wget -O "$FILE" "$URL"
+
+          if [[ "$FILE" == *.tar.zst ]]; then
+            unzstd "$FILE"
+            TAR_FILE="${FILE%.zst}"
+            tar -xf "$TAR_FILE"
+
+          elif [[ "$FILE" == *.tar.xz ]]; then
+            tar -xJf "$FILE"
+
           else
-            tar -xf sdk.tar
+            tar -xf "$FILE"
           fi
 
           mv openwrt-sdk-* sdk
