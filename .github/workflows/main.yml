@@ -1,0 +1,102 @@
+name: Build LuCI ALL packages
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - version: openwrt-24.10
+            arch: x86_64
+          - version: openwrt-25.12
+            arch: x86_64
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Setup dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y rsync build-essential
+
+      - name: Compute SDK ARCH
+        run: |
+          echo "ARCH=${{ matrix.arch }}-${{ matrix.version }}" >> $GITHUB_ENV
+
+      - name: Download OpenWrt SDK
+        run: |
+          set -e
+
+          BASE="https://downloads.openwrt.org/releases/${{ matrix.version }}/targets/x86/64"
+
+          SDK=$(curl -s $BASE/ | grep -oP 'openwrt-sdk-[^"]+\.tar\.xz' | head -n1)
+
+          echo "SDK: $SDK"
+
+          wget "$BASE/$SDK"
+          tar -xf "$SDK"
+          mv openwrt-sdk-* sdk
+
+      - name: Add custom feed (LuCI packages)
+        run: |
+          mkdir -p sdk/package/custom
+
+          # копируем весь репо в feed
+          rsync -av \
+            --exclude='.git' \
+            --exclude='.github' \
+            ./ sdk/package/custom/
+
+      - name: Update feeds
+        run: |
+          cd sdk
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Build LuCI ALL packages only
+        run: |
+          cd sdk
+
+          # build only LuCI packages
+          make package/custom/compile V=s -j$(nproc)
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p out
+
+          find sdk/bin -type f \( -name "*.ipk" -o -name "*.apk" \) \
+            -exec cp {} out/ \;
+
+      - name: Rename packages
+        run: |
+          set -e
+
+          for f in out/*; do
+            base=$(basename "$f")
+
+            # extract arch from file
+            arch=$(echo "$base" | sed -E 's/.*_([^_]+)\.(ipk|apk)/\1/')
+
+            version=${{ matrix.version }}
+
+            new="${base%%_*}_${version}_${arch}"
+
+            mv "$f" "out/$new"
+          done
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: luci-all-${{ matrix.version }}
+          path: out/*
