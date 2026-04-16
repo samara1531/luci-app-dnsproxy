@@ -79,6 +79,8 @@ jobs:
       - name: Build package
         run: |
           cd sdk
+          echo "CONFIG_PACKAGE_luci-app-dnsproxy=m" > .config
+          make oldconfig
           make package/custom/compile -j$(nproc)
 
       - name: Collect artifacts
