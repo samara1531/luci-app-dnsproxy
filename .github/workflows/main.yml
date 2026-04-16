@@ -16,8 +16,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - version: 24.10
-          - version: 25.12
+          - version: "24.10.6"
+          - version: "25.12.2"
 
     steps:
       - name: Checkout repo
