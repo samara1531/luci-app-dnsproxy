@@ -81,7 +81,7 @@ jobs:
           cd sdk
           echo "CONFIG_PACKAGE_luci-app-dnsproxy=m" > .config
           make oldconfig
-          make package/custom/compile -j$(nproc)
+          make package/custom/compile V=s -j1
 
       - name: Collect artifacts
         run: |
