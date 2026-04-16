@@ -16,8 +16,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - version: "24.10.6"
-          - version: "25.12.2"
+          - version: "24.10"
+            sdk_url: "https://downloads.openwrt.org/releases/24.10.6/targets/x86/64/openwrt-sdk-24.10.6-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst"
+
+          - version: "25.12"
+            sdk_url: "https://downloads.openwrt.org/releases/25.12.2/targets/x86/64/openwrt-sdk-25.12.2-x86-64_gcc-14.3.0_musl.Linux-x86_64.tar.zst"
 
     steps:
       - name: Checkout repo
@@ -26,27 +29,18 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y rsync build-essential curl tar xz-utils
+          sudo apt install -y rsync build-essential zstd wget
 
-      - name: Download OpenWrt SDK
+      - name: Download SDK
         run: |
           set -e
 
-          BASE="https://downloads.openwrt.org/releases/${{ matrix.version }}/targets/x86/64/"
+          echo "Downloading: ${{ matrix.sdk_url }}"
+          wget -O sdk.tar.zst "${{ matrix.sdk_url }}"
 
-          echo "Fetching SDK from: $BASE"
+          unzstd sdk.tar.zst
+          tar -xf sdk.tar
 
-          SDK=$(curl -s "$BASE/" | grep -oE 'openwrt-sdk-[^"]+tar\.xz' | head -n1)
-
-          if [ -z "$SDK" ]; then
-            echo "SDK not found!"
-            exit 1
-          fi
-
-          echo "SDK: $SDK"
-
-          wget "$BASE/$SDK"
-          tar -xf "$SDK"
           mv openwrt-sdk-* sdk
 
       - name: Add custom LuCI feed
@@ -58,10 +52,9 @@ jobs:
             --exclude='.github' \
             ./ sdk/package/custom/
 
-      - name: Update feeds (minimal)
+      - name: Update feeds
         run: |
           cd sdk
-
           ./scripts/feeds update luci packages
           ./scripts/feeds install -p luci -p packages
 
@@ -84,14 +77,9 @@ jobs:
           for f in out/*; do
             base=$(basename "$f")
 
-            # extract architecture (all / noarch / x86_64 etc.)
             arch=$(echo "$base" | sed -E 's/.*_([^_]+)\.(ipk|apk)/\1/')
 
-            version=${{ matrix.version }}
-
-            new="${base%%_*}_${version}_${arch}"
-
-            mv "$f" "out/$new"
+            mv "$f" "out/${base%%_*}_${{ matrix.version }}_${arch}"
           done
 
       - name: Upload artifacts
