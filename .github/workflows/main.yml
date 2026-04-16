@@ -61,10 +61,14 @@ jobs:
         run: |
           set -e
 
-          mkdir -p sdk/package/custom/luci-app-dnsproxy
+          PKG_DIR="sdk/package/custom/luci-app-dnsproxy"
 
-          cp -r luci-app-dnsproxy/. \
-            sdk/package/custom/luci-app-dnsproxy/
+          mkdir -p "$PKG_DIR"
+
+          cp -r ./htdocs "$PKG_DIR/"
+          cp -r ./po "$PKG_DIR/"
+          cp -r ./root "$PKG_DIR/"
+          cp ./Makefile "$PKG_DIR/"
 
       - name: Update feeds (light)
         run: |
