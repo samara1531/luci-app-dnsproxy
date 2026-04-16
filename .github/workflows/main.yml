@@ -1,4 +1,4 @@
-name: LuCI Light Build
+name: Build LuCI ALL packages
 
 on:
   workflow_dispatch:
@@ -26,48 +26,36 @@ jobs:
             sdk_url: "https://downloads.openwrt.org/releases/25.12.2/targets/x86/64/openwrt-sdk-25.12.2-x86-64_gcc-14.3.0_musl.Linux-x86_64.tar.zst"
 
     steps:
-      - name: Checkout
+      - name: Checkout repo
         uses: actions/checkout@v5
 
-      # 💥 FREE DISK SPACE (ВАЖНО)
-      - name: Free runner space
+      - name: Free space
         run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /usr/local/lib/android || true
           sudo rm -rf /opt/ghc || true
           sudo docker system prune -af || true
 
       - name: Install deps
         run: |
           sudo apt update
-          sudo apt install -y wget rsync tar xz-utils zstd build-essential
+          sudo apt install -y wget rsync build-essential xz-utils zstd
 
-      # 📦 Download SDK (NO PARSING)
       - name: Download SDK
         run: |
           set -e
 
-          URL="${{ matrix.sdk_url }}"
-          FILE=$(basename "$URL")
+          file_name=$(basename "${{ matrix.sdk_url }}")
 
-          wget -O "$FILE" "$URL"
+          wget -O "$file_name" "${{ matrix.sdk_url }}"
 
-          if [[ "$FILE" == *.tar.zst ]]; then
-            unzstd "$FILE"
-            TAR_FILE="${FILE%.zst}"
-            tar -xf "$TAR_FILE"
+          tar -xf "$file_name"
 
-          elif [[ "$FILE" == *.tar.xz ]]; then
-            tar -xJf "$FILE"
-
-          else
-            tar -xf "$FILE"
-          fi
+          rm -f *.tar.zst *.tar.xz || true
 
           mv openwrt-sdk-* sdk
 
-      # 📁 Add your LuCI package ONLY
-      - name: Add package
+      - name: Add LuCI package
         run: |
           mkdir -p sdk/package/custom
 
@@ -76,35 +64,23 @@ jobs:
             --exclude='.github' \
             ./ sdk/package/custom/
 
-      # 🧠 NO feeds (это главный фикс)
-      - name: Prepare build system
+      - name: Update feeds (light)
         run: |
           cd sdk
           ./scripts/feeds update luci
           ./scripts/feeds install -p luci
 
-      # 🏗️ BUILD (quiet mode!)
       - name: Build package
         run: |
           cd sdk
           make package/custom/compile -j$(nproc)
 
-      # 📦 Collect artifacts
       - name: Collect artifacts
         run: |
           mkdir -p out
           find sdk/bin -type f \( -name "*.ipk" -o -name "*.apk" \) -exec cp {} out/ \;
 
-      # 🏷️ Rename
-      - name: Rename
-        run: |
-          for f in out/*; do
-            base=$(basename "$f")
-            mv "$f" "out/${base%%_*}_${{ matrix.version }}_${base##*_}"
-          done
-
-      # 📤 Upload
-      - name: Upload
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: luci-${{ matrix.version }}
