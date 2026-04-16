@@ -17,30 +17,33 @@ jobs:
       matrix:
         include:
           - version: 24.10
-            arch: x86_64
+            target: x86_64_generic
           - version: 25.12
-            arch: x86_64
+            target: x86_64_generic
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
 
-      - name: Setup dependencies
+      - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y rsync build-essential
-
-      - name: Compute SDK ARCH
-        run: |
-          echo "ARCH=${{ matrix.arch }}-${{ matrix.version }}" >> $GITHUB_ENV
+          sudo apt install -y rsync build-essential curl tar xz-utils
 
       - name: Download OpenWrt SDK
         run: |
           set -e
 
-          BASE="https://downloads.openwrt.org/releases/${{ matrix.version }}/targets/x86/64"
+          BASE="https://downloads.openwrt.org/releases/${{ matrix.version }}/targets/x86/${{ matrix.target }}"
 
-          SDK=$(curl -s $BASE/ | grep -oP 'openwrt-sdk-[^"]+\.tar\.xz' | head -n1)
+          echo "Fetching SDK list from: $BASE"
+
+          SDK=$(curl -s "$BASE/" | grep -oE 'openwrt-sdk-[^"]+x86_64_generic[^"]+\.tar\.xz' | head -n1)
+
+          if [ -z "$SDK" ]; then
+            echo "SDK not found!"
+            exit 1
+          fi
 
           echo "SDK: $SDK"
 
@@ -48,27 +51,25 @@ jobs:
           tar -xf "$SDK"
           mv openwrt-sdk-* sdk
 
-      - name: Add custom feed (LuCI packages)
+      - name: Add custom LuCI feed
         run: |
           mkdir -p sdk/package/custom
 
-          # копируем весь репо в feed
           rsync -av \
             --exclude='.git' \
             --exclude='.github' \
             ./ sdk/package/custom/
 
-      - name: Update feeds
-        run: |
-          cd sdk
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a
-
-      - name: Build LuCI ALL packages only
+      - name: Update feeds (minimal)
         run: |
           cd sdk
 
-          # build only LuCI packages
+          ./scripts/feeds update luci packages
+          ./scripts/feeds install -p luci -p packages
+
+      - name: Build LuCI packages
+        run: |
+          cd sdk
           make package/custom/compile V=s -j$(nproc)
 
       - name: Collect artifacts
@@ -85,7 +86,7 @@ jobs:
           for f in out/*; do
             base=$(basename "$f")
 
-            # extract arch from file
+            # extract architecture (all / noarch / x86_64 etc.)
             arch=$(echo "$base" | sed -E 's/.*_([^_]+)\.(ipk|apk)/\1/')
 
             version=${{ matrix.version }}
