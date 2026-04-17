@@ -59,22 +59,16 @@ jobs:
           esac
 
           rm -f *.tar.xz *.tar.zst || true
-
           mv openwrt-sdk-* sdk
 
       - name: Add dnsproxy backend
         run: |
-          set -e
           git clone https://github.com/AdguardTeam/dnsproxy sdk/package/dnsproxy
 
       - name: Add LuCI package
         run: |
-          set -e
-
           mkdir -p sdk/package/custom/luci-app-dnsproxy
-
-          cp -r htdocs po root Makefile \
-            sdk/package/custom/luci-app-dnsproxy/
+          cp -r htdocs po root Makefile sdk/package/custom/luci-app-dnsproxy/
 
       - name: Update feeds
         run: |
@@ -85,32 +79,26 @@ jobs:
       - name: Build package
         run: |
           cd sdk
-
           make defconfig
           make package/custom/luci-app-dnsproxy/compile V=s -j1
 
+      # -------------------------
+      # FIXED OUTPUT
+      # -------------------------
       - name: Collect artifacts
         run: |
           set -e
 
           mkdir -p out
-
           VERSION="${{ matrix.version }}"
 
           find sdk/bin -type f \( -name "luci-app-dnsproxy*.ipk" -o -name "luci-app-dnsproxy*.apk" \) | while read f; do
-            base=$(basename "$f")
-            ext="${base##*.}"
+            ext="${f##*.}"
 
             case "$ext" in
-              ipk)
-                arch="all"
-                ;;
-              apk)
-                arch="noarch"
-                ;;
-              *)
-                continue
-                ;;
+              ipk) arch="all" ;;
+              apk) arch="noarch" ;;
+              *) continue ;;
             esac
 
             cp -v "$f" "out/luci-app-dnsproxy_${VERSION}_${arch}.${ext}"
@@ -121,3 +109,15 @@ jobs:
         with:
           name: luci-dnsproxy-${{ matrix.version }}
           path: out/*
+
+      # -------------------------
+      # RELEASE (ВОТ ЭТО ТЕБЕ НЕ ХВАТАЛО)
+      # -------------------------
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: luci-dnsproxy-${{ github.run_number }}
+          name: luci-app-dnsproxy build ${{ github.run_number }}
+          files: out/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
