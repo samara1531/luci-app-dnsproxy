@@ -2,6 +2,9 @@
 #
 # Copyright (C) 2023-2025 muink <https://github.com/muink>
 
+PKG_VERSION:=1.0
+PKG_RELEASE:=1
+
 include $(TOPDIR)/rules.mk
 
 LUCI_NAME:=luci-app-dnsproxy
