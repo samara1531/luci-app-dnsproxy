@@ -1,4 +1,4 @@
-name: Build LuCI ALL packages
+name: Build LuCI DNSProxy
 
 on:
   workflow_dispatch:
@@ -39,8 +39,11 @@ jobs:
       - name: Install deps
         run: |
           sudo apt update
-          sudo apt install -y wget rsync build-essential xz-utils zstd
+          sudo apt install -y wget rsync build-essential xz-utils zstd git
 
+      # ---------------------------
+      # Download SDK
+      # ---------------------------
       - name: Download SDK
         run: |
           set -e
@@ -53,43 +56,64 @@ jobs:
 
           rm -f *.tar.zst *.tar.xz || true
 
-          sdk_dir=$(find . -maxdepth 1 -type d -name "openwrt-sdk*" | head -n1)
+          mv openwrt-sdk-* sdk
 
-          mv "$sdk_dir" sdk
+      # ---------------------------
+      # Add dnsproxy backend
+      # ---------------------------
+      - name: Add dnsproxy backend
+        run: |
+          set -e
 
+          git clone https://github.com/muink/dnsproxy sdk/package/dnsproxy
+
+      # ---------------------------
+      # Add LuCI package
+      # ---------------------------
       - name: Add LuCI package
         run: |
           set -e
 
-          PKG_DIR="sdk/package/custom/luci-app-dnsproxy"
+          mkdir -p sdk/package/custom/luci-app-dnsproxy
 
-          mkdir -p "$PKG_DIR"
+          cp -r htdocs po root Makefile \
+            sdk/package/custom/luci-app-dnsproxy/
 
-          cp -r ./htdocs "$PKG_DIR/"
-          cp -r ./po "$PKG_DIR/"
-          cp -r ./root "$PKG_DIR/"
-          cp ./Makefile "$PKG_DIR/"
-
-      - name: Update feeds (light)
+      # ---------------------------
+      # Update feeds
+      # ---------------------------
+      - name: Update feeds
         run: |
           cd sdk
-          ./scripts/feeds update luci
-          ./scripts/feeds install -p luci
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
 
+      # ---------------------------
+      # Build
+      # ---------------------------
       - name: Build package
         run: |
           cd sdk
-          echo "CONFIG_PACKAGE_luci-app-dnsproxy=m" > .config
-          make oldconfig
-          make package/custom/compile V=s -j1
 
+          make defconfig
+
+          make package/custom/luci-app-dnsproxy/compile V=s -j1
+
+      # ---------------------------
+      # Collect artifacts
+      # ---------------------------
       - name: Collect artifacts
         run: |
           mkdir -p out
-          find sdk/bin -type f \( -name "*.ipk" -o -name "*.apk" \) -exec cp {} out/ \;
 
+          find sdk/bin -type f \( -name "*.ipk" -o -name "*.apk" \) \
+            -exec cp {} out/ \;
+
+      # ---------------------------
+      # Upload
+      # ---------------------------
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: luci-${{ matrix.version }}
+          name: luci-dnsproxy-${{ matrix.version }}
           path: out/*
