@@ -41,9 +41,6 @@ jobs:
           sudo apt update
           sudo apt install -y wget rsync build-essential xz-utils zstd git
 
-      # ---------------------------
-      # Download SDK
-      # ---------------------------
       - name: Download SDK
         run: |
           set -e
@@ -52,24 +49,24 @@ jobs:
 
           wget -O "$file_name" "${{ matrix.sdk_url }}"
 
-          tar -xf "$file_name"
+          case "$file_name" in
+            *.tar.xz)
+              tar -xf "$file_name"
+              ;;
+            *.tar.zst)
+              tar --use-compress-program=unzstd -xf "$file_name"
+              ;;
+          esac
 
-          rm -f *.tar.zst *.tar.xz || true
+          rm -f *.tar.xz *.tar.zst || true
 
           mv openwrt-sdk-* sdk
 
-      # ---------------------------
-      # Add dnsproxy backend
-      # ---------------------------
       - name: Add dnsproxy backend
         run: |
           set -e
-
           git clone https://github.com/muink/dnsproxy sdk/package/dnsproxy
 
-      # ---------------------------
-      # Add LuCI package
-      # ---------------------------
       - name: Add LuCI package
         run: |
           set -e
@@ -79,39 +76,46 @@ jobs:
           cp -r htdocs po root Makefile \
             sdk/package/custom/luci-app-dnsproxy/
 
-      # ---------------------------
-      # Update feeds
-      # ---------------------------
       - name: Update feeds
         run: |
           cd sdk
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      # ---------------------------
-      # Build
-      # ---------------------------
       - name: Build package
         run: |
           cd sdk
 
           make defconfig
-
           make package/custom/luci-app-dnsproxy/compile V=s -j1
 
-      # ---------------------------
-      # Collect artifacts
-      # ---------------------------
       - name: Collect artifacts
         run: |
+          set -e
+
           mkdir -p out
 
-          find sdk/bin -type f \( -name "*.ipk" -o -name "*.apk" \) \
-            -exec cp {} out/ \;
+          VERSION="${{ matrix.version }}"
 
-      # ---------------------------
-      # Upload
-      # ---------------------------
+          find sdk/bin -type f \( -name "luci-app-dnsproxy*.ipk" -o -name "luci-app-dnsproxy*.apk" \) | while read f; do
+            base=$(basename "$f")
+            ext="${base##*.}"
+
+            case "$ext" in
+              ipk)
+                arch="all"
+                ;;
+              apk)
+                arch="noarch"
+                ;;
+              *)
+                continue
+                ;;
+            esac
+
+            cp -v "$f" "out/luci-app-dnsproxy_${VERSION}_${arch}.${ext}"
+          done
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
