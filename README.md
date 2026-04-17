@@ -1,8 +1,8 @@
 # luci-app-dnsproxy
 
-- dnsproxy is a simple DNS proxy server that supports all existing DNS protocols including
-`DNS-over-TLS`, `DNS-over-HTTPS`, `DNSCrypt`, and `DNS-over-QUIC`.
-- Moreover, it can work as a `DNS-over-HTTPS`, `DNS-over-TLS` or `DNS-over-QUIC` server.
++ dnsproxy is a simple DNS proxy server that supports all existing DNS protocols including
+  - `DNS-over-TLS`, `DNS-over-HTTPS`, `DNSCrypt`, and `DNS-over-QUIC`.
++ Moreover, it can work as a `DNS-over-HTTPS`, `DNS-over-TLS` or `DNS-over-QUIC` server.
 
 ```
 
