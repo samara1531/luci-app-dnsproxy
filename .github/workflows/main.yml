@@ -65,7 +65,7 @@ jobs:
       - name: Add dnsproxy backend
         run: |
           set -e
-          git clone https://github.com/muink/dnsproxy sdk/package/dnsproxy
+          git clone https://github.com/AdguardTeam/dnsproxy sdk/package/dnsproxy
 
       - name: Add LuCI package
         run: |
