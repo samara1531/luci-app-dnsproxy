@@ -12,7 +12,7 @@ LUCI_TITLE:=LuCI Support for dnsproxy
 LUCI_PKGARCH:=all
 LUCI_DEPENDS:=+dnsproxy
 
-PKG_DESCRIPTION:=Simple DNS proxy with DoH, DoT, DoQ and DNSCrypt support
+LUCI_DESCRIPTION:=Simple DNS proxy with DoH, DoT, DoQ and DNSCrypt support
 
 PKG_LICENSE:=Apache-2.0
 PKG_MAINTAINER:=Anya Lin <hukk1996@gmail.com>
