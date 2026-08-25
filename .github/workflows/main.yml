@@ -1,54 +1,39 @@
 name: Build LuCI DNSProxy
-
 on:
   workflow_dispatch:
-  push:
-    branches: [ master ]
-
 permissions:
   contents: write
-
 jobs:
   build:
     runs-on: ubuntu-latest
-
     strategy:
       fail-fast: false
       matrix:
         include:
           - version: "23.05"
             sdk_url: "https://downloads.openwrt.org/releases/23.05.6/targets/x86/64/openwrt-sdk-23.05.6-x86-64_gcc-12.3.0_musl.Linux-x86_64.tar.xz"
-
           - version: "24.10"
-            sdk_url: "https://downloads.openwrt.org/releases/24.10.7/targets/x86/64/openwrt-sdk-24.10.8-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst"
-
+            sdk_url: "https://downloads.openwrt.org/releases/24.10.8/targets/x86/64/openwrt-sdk-24.10.8-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst"
           - version: "25.12"
             sdk_url: "https://downloads.openwrt.org/releases/25.12.5/targets/x86/64/openwrt-sdk-25.12.5-x86-64_gcc-14.3.0_musl.Linux-x86_64.tar.zst"
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
-
       - name: Free space
         run: |
           sudo rm -rf /usr/share/dotnet || true
           sudo rm -rf /usr/local/lib/android || true
           sudo rm -rf /opt/ghc || true
           sudo docker system prune -af || true
-
       - name: Install deps
         run: |
           sudo apt update
           sudo apt install -y wget rsync build-essential xz-utils zstd git
-
       - name: Download SDK
         run: |
           set -e
-
           file_name=$(basename "${{ matrix.sdk_url }}")
-
           wget -O "$file_name" "${{ matrix.sdk_url }}"
-
           case "$file_name" in
             *.tar.xz)
               tar -xf "$file_name"
@@ -57,57 +42,45 @@ jobs:
               tar --use-compress-program=unzstd -xf "$file_name"
               ;;
           esac
-
           rm -f *.tar.xz *.tar.zst || true
           mv openwrt-sdk-* sdk
-
       - name: Add dnsproxy backend
         run: |
           git clone https://github.com/AdguardTeam/dnsproxy sdk/package/dnsproxy
-
       - name: Add LuCI package
         run: |
           mkdir -p sdk/package/custom/luci-app-dnsproxy
           cp -r htdocs po root Makefile sdk/package/custom/luci-app-dnsproxy/
-
       - name: Update feeds
         run: |
           cd sdk
           ./scripts/feeds update -a
           ./scripts/feeds install -a
-
       - name: Build package
         run: |
           cd sdk
           make defconfig
           make package/custom/luci-app-dnsproxy/compile V=s -j1
-
       # -------------------------
       - name: Collect artifacts
         run: |
           set -e
-
           mkdir -p out
           VERSION="${{ matrix.version }}"
-
           find sdk/bin -type f \( -name "luci-app-dnsproxy*.ipk" -o -name "luci-app-dnsproxy*.apk" \) | while read f; do
             ext="${f##*.}"
-
             case "$ext" in
               ipk) arch="all" ;;
               apk) arch="noarch" ;;
               *) continue ;;
             esac
-
             cp -v "$f" "out/luci-app-dnsproxy_${VERSION}_${arch}.${ext}"
           done
-
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: luci-dnsproxy-${{ matrix.version }}
           path: out/*
-
       # -------------------------
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
